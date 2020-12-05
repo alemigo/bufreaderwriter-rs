@@ -1,8 +1,14 @@
 [package]
 name = "bufreaderwriter"
 version = "0.1.0"
-authors = ["alemigo <alexmigon@gmail.com>"]
+authors = ["github.com/alemigo"]
 edition = "2018"
+license = "MIT OR Apache-2.0"
+description = "Rust convenience struct that facilitates automatic switching between buffered reading and writing from a single underlying Read + Write + Seek instance (generally designed for  `File`).  BufReaderWriter moves the underlying instance between a BufReader and BufWriter as needed."
+documentation = "https://docs.rs/bufreaderwriter"
+readme = "README.md"
+repository = "https://github.com/alemigo/bufreaderwriter-rs"
+categories = ["filesystem"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
