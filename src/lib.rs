@@ -10,7 +10,7 @@ use std::io::{self, BufReader, BufWriter, IntoInnerError, Read, Seek, SeekFrom, 
 /// involves discarding the read buffer and seeking the underlying reader/writer back
 /// to the current position of the BufReader. 
 
-enum BufIO<RW: Read + Write> {
+enum BufIO<RW: Read + Write + Seek> {
     Reader(BufReader<RW>),
     Writer(BufWriter<RW>),
 }
