@@ -1,14 +1,33 @@
+//! The `BufReaderWriter<RW>` is a convenience struct that facilitates automatic
+//! switching between buffered reading and writing from a single underlying Read +
+//! Write + Seek instance (generally applicable for  `std::fs::File`).  BufReaderWriter
+//! moves the underlying instance between a BufReader and BufWriter as needed.
+//!
+//! The The reader/writer needs to be seekable as switching from reading to writing
+//! involves discarding the read buffer and seeking the underlying reader/writer back
+//! to the current position of the BufReader.
+//!
+//! # Example
+//!
+//! ```no_run
+//! # use std::io::{self, Read, Seek, SeekFrom, Write};
+//! use bufreaderwriter::BufReaderWriter;
+//! use tempfile::tempfile;
+//!
+//! fn main() -> io::Result<()> {
+//!     let mut brw = BufReaderWriter::new_writer(tempfile()?);
+//!     let data = "The quick brown fox jumps over the lazy dog".to_owned();
+//!     brw.write(data.as_bytes())?;
+//!
+//!     brw.seek(SeekFrom::Start(0))?;
+//!     let mut bin = vec![0; data.len()];
+//!     brw.read(&mut bin)?;
+//!     Ok(())
+//! }
+//! ```
+
 use std::cell::Cell;
 use std::io::{self, BufReader, BufWriter, IntoInnerError, Read, Seek, SeekFrom, Write};
-
-/// The `BufReaderWriter<RW>` is a convenience struct that facilitates automatic
-/// switching between buffered reading and writing from a single underlying Read +
-/// Write + Seek instance (generally applicable for  `std::fs::File`).  BufReaderWriter
-/// moves the underlying instance between a BufReader and BufWriter as needed.
-///
-/// The The reader/writer needs to be seekable as switching from reading to writing
-/// involves discarding the read buffer and seeking the underlying reader/writer back
-/// to the current position of the BufReader. 
 
 enum BufIO<RW: Read + Write + Seek> {
     Reader(BufReader<RW>),
@@ -58,7 +77,7 @@ impl<RW: Read + Write + Seek> BufReaderWriter<RW> {
         }
     }
 
-    /// Gets a mutable reference to the underlying reader.
+    /// Gets a mutable reference to the underlying reader/writer.
     pub fn get_mut(&mut self) -> &mut RW {
         self.inner.get_mut().as_mut().unwrap().get_mut()
     }
@@ -118,8 +137,8 @@ impl<RW: Read + Write + Seek> Seek for BufReaderWriter<RW> {
 #[cfg(test)]
 mod tests {
     use super::BufReaderWriter;
+    use std::io::{Read, Seek, SeekFrom, Write};
     use tempfile::tempfile;
-    use std::io::{Read, Write, Seek, SeekFrom};
 
     #[test]
     fn test() {
