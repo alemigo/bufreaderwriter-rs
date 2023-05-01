@@ -1,21 +1,22 @@
-//! The `BufReaderWriter<RW>` is a convenience struct that facilitates automatic
-//! switching between buffered reading and writing from a single underlying Read +
-//! Write + Seek instance (generally applicable for  `std::fs::File`).  BufReaderWriter
-//! moves the underlying instance between a BufReader and BufWriter as needed.
+//! The `BufReaderWriterRand<RW>` and `BufReaderWriterSeq<RW>` are convenience structs that facilitate automatic
+//! switching between buffered reading and writing from a single underlying IO instance. `BufReaderWriterRand` is
+//! for random access IO (i.e. Read + Write + Seek, such as `std::fs::File`), while `BufReaderWriterSeq` is for sequential
+//! IO (i.e. Read + Write, such as `std::net::TcpStream`).
 //!
-//! The reader/writer needs to be seekable as switching from reading to writing
-//! involves discarding the read buffer and seeking the underlying reader/writer back
-//! to the current position of the BufReader.
+//! Both structs move the underlying IO instance between a BufReader and BufWriter as needed.  However, when switching from
+//! reading to writing, `BufReaderWriterRand` discards any buffered data and seeks the underlying IO instance back to the
+//! current BufReader position, while `BufReaderWriterSeq` saves any buffered data and makes it available for subsequent
+//! reads.
 //!
 //! # Example
 //!
 //! ```no_run
 //! # use std::io::{self, Read, Seek, SeekFrom, Write};
-//! use bufreaderwriter::BufReaderWriter;
+//! use bufreaderwriter::rand::BufReaderWriterRand;
 //! use tempfile::tempfile;
 //!
 //! fn main() -> io::Result<()> {
-//!     let mut brw = BufReaderWriter::new_writer(tempfile()?);
+//!     let mut brw = BufReaderWriterRand::new_writer(tempfile()?);
 //!     let data = "The quick brown fox jumps over the lazy dog".to_owned();
 //!     brw.write(data.as_bytes())?;
 //!
@@ -26,133 +27,23 @@
 //! }
 //! ```
 
-use std::io::{self, BufReader, BufWriter, IntoInnerError, Read, Seek, SeekFrom, Write};
-
-enum BufIO<RW: Read + Write + Seek> {
-    Reader(BufReader<RW>),
-    Writer(BufWriter<RW>),
-}
-
-impl<RW: Read + Write + Seek> BufIO<RW> {
-    fn new_writer(rw: RW) -> BufIO<RW> {
-        BufIO::Writer(BufWriter::new(rw))
-    }
-
-    fn new_reader(rw: RW) -> BufIO<RW> {
-        BufIO::Reader(BufReader::new(rw))
-    }
-
-    fn get_mut(&mut self) -> &mut RW {
-        match self {
-            BufIO::Reader(r) => r.get_mut(),
-            BufIO::Writer(w) => w.get_mut(),
-        }
-    }
-
-    fn get_ref(&self) -> &RW {
-        match self {
-            BufIO::Reader(r) => r.get_ref(),
-            BufIO::Writer(w) => w.get_ref(),
-        }
-    }
-
-    fn into_inner(self) -> Result<RW, IntoInnerError<BufWriter<RW>>> {
-        match self {
-            BufIO::Reader(r) => Ok(r.into_inner()),
-            BufIO::Writer(w) => Ok(w.into_inner()?),
-        }
-    }
-}
-
-pub struct BufReaderWriter<RW: Read + Write + Seek> {
-    inner: Option<BufIO<RW>>,
-}
-
-impl<RW: Read + Write + Seek> BufReaderWriter<RW> {
-    /// Returns a new BufReaderWriter instance, expecting a write as the first operation.
-    pub fn new_writer(rw: RW) -> BufReaderWriter<RW> {
-        BufReaderWriter {
-            inner: Some(BufIO::new_writer(rw)),
-        }
-    }
-
-    /// Returns a new BufReaderWriter instance, expecting a read as the first operation.
-    pub fn new_reader(rw: RW) -> BufReaderWriter<RW> {
-        BufReaderWriter {
-            inner: Some(BufIO::new_reader(rw)),
-        }
-    }
-
-    /// Gets a mutable reference to the underlying reader/writer.
-    pub fn get_mut(&mut self) -> &mut RW {
-        self.inner.as_mut().unwrap().get_mut()
-    }
-
-    /// Gets a reference to the underlying reader/writer.
-    pub fn get_ref(&self) -> &RW {
-        self.inner.as_ref().unwrap().get_ref()
-    }
-
-    /// Unwraps this `BufReaderWriter`, returning the underlying reader/writer.
-    pub fn into_inner(self) -> Result<RW, IntoInnerError<BufWriter<RW>>> {
-        self.inner.unwrap().into_inner()
-    }
-}
-
-impl<RW: Read + Write + Seek> Read for BufReaderWriter<RW> {
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        match self.inner.as_mut().unwrap() {
-            BufIO::Reader(r) => r.read(buf),
-            BufIO::Writer(w) => {
-                w.flush()?;
-                let rw = self.inner.take().unwrap().into_inner()?;
-                self.inner = Some(BufIO::Reader(BufReader::new(rw)));
-                self.read(buf)
-            }
-        }
-    }
-}
-
-impl<RW: Read + Write + Seek> Write for BufReaderWriter<RW> {
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        match self.inner.as_mut().unwrap() {
-            BufIO::Writer(w) => w.write(buf),
-            BufIO::Reader(r) => {
-                r.seek(SeekFrom::Current(0))?;
-                let rw = self.inner.take().unwrap().into_inner()?;
-                self.inner = Some(BufIO::Writer(BufWriter::new(rw)));
-                self.write(buf)
-            }
-        }
-    }
-
-    fn flush(&mut self) -> io::Result<()> {
-        match self.inner.as_mut() {
-            Some(BufIO::Writer(w)) => Ok(w.flush()?),
-            _ => Ok(()),
-        }
-    }
-}
-
-impl<RW: Read + Write + Seek> Seek for BufReaderWriter<RW> {
-    fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
-        match self.inner.as_mut().unwrap() {
-            BufIO::Writer(w) => w.seek(pos),
-            BufIO::Reader(r) => r.seek(pos),
-        }
-    }
-}
+pub mod rand;
+pub mod seq;
 
 #[cfg(test)]
 mod tests {
-    use super::BufReaderWriter;
+    use crate::rand::BufReaderWriterRand;
+    use crate::seq::BufReaderWriterSeq;
     use std::io::{Read, Seek, SeekFrom, Write};
+    use std::net::{TcpListener, TcpStream};
+    use std::thread;
+    use std::time::Duration;
     use tempfile::tempfile;
 
     #[test]
-    fn test() {
+    fn testrand() {
         let file = tempfile().expect("Error creating temp file");
-        let mut brw = BufReaderWriter::new_writer(file);
+        let mut brw = BufReaderWriterRand::new_writer(file);
         let data = "The quick brown fox jumps over the lazy dog".to_owned();
         let data_len = data.len();
 
@@ -180,5 +71,61 @@ mod tests {
         assert_eq!("The dog".to_owned(), String::from_utf8(bin).unwrap());
 
         let _f = brw.into_inner().expect("Error extracting underlying file");
+    }
+
+    #[test]
+    fn testseq() {
+        let data = "The quick brown fox jumps over the lazy dog".to_owned();
+        let data_len = data.len();
+
+        let handle = thread::spawn(|| {
+            let tcp = TcpListener::bind("127.0.0.1:8080").expect("TcpListener error");
+            match tcp.accept() {
+                Ok((mut socket, _addr)) => {
+                    socket
+                        .set_read_timeout(Some(Duration::new(2, 0)))
+                        .expect("Read timeout");
+                    let mut buf = vec![0_u8; 100];
+                    loop {
+                        match socket.read(&mut buf[..]) {
+                            Ok(n) => {
+                                socket.write(&buf[0..n]).expect("write io error");
+                            }
+                            Err(e) => match e.kind() {
+                                std::io::ErrorKind::TimedOut => break,
+                                _ => panic!("listener read error {}", e),
+                            },
+                        }
+                    }
+                }
+                Err(e) => panic!("TCP Listen error {}", e),
+            }
+        });
+
+        let socket2 = TcpStream::connect("127.0.0.1:8080").expect("TcpStream error");
+        let mut brw = BufReaderWriterSeq::new_writer(socket2);
+
+        thread::sleep(Duration::new(1, 0));
+        assert_eq!(data_len, brw.write(data.as_bytes()).expect("Write error"));
+
+        let mut buf = vec![0_u8; 10];
+        let n = brw.read(&mut buf[..]).expect("read io error");
+        assert_eq!(std::str::from_utf8(&buf).unwrap(), &data[0..10]);
+
+        let _n = brw.write(data.as_bytes()).expect("write io error");
+        let _n = brw.write(data.as_bytes()).expect("write io error");
+
+        let mut buf = vec![0_u8; 5];
+        let n = brw.read(&mut buf[..]).expect("read io error");
+        let outdata = std::str::from_utf8(&buf).unwrap();
+        assert_eq!(outdata, &data[10..15]);
+
+        let mut buf = vec![0_u8; (2 * data_len) - 15];
+        let n = brw.read(&mut buf[..]).expect("read io error");
+        let outdata = std::str::from_utf8(&buf).unwrap();
+        assert_eq!(&outdata[0..data_len - 15], &data[15..]);
+        assert_eq!(&outdata[data_len - 15..], &data);
+
+        handle.join().expect("Join thread error");
     }
 }
