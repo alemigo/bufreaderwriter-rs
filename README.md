@@ -1,7 +1,13 @@
 # BufReaderWriter
-The `BufReaderWriter<RW>` is a convenience struct that facilitates automatic switching between buffered reading and writing from a single underlying Read + Write + Seek instance (generally applicable for  `std::fs::File`).  BufReaderWriter moves the underlying reader/writer between a BufReader and BufWriter as needed.
+The `BufReaderWriterRand<RW>` and `BufReaderWriterSeq<RW>` are convenience structs that facilitate automatic
+switching between buffered reading and writing from a single underlying IO instance. `BufReaderWriterRand` is
+for random access IO (i.e. Read + Write + Seek, such as `std::fs::File`), while `BufReaderWriterSeq` is for sequential
+IO (i.e. Read + Write, such as `std::net::TcpStream`).
 
-The reader/writer needs to be seekable as switching from reading to writing involves discarding the read buffer and seeking the underlying reader/writer back to the current position of the BufReader.
+Both structs move the underlying IO instance between a BufReader and BufWriter as needed.  However, when switching from
+reading to writing, `BufReaderWriterRand` discards any buffered data and seeks the underlying IO instance back to the
+current BufReader position, while `BufReaderWriterSeq` saves any buffered data and makes it available for subsequent
+reads.
 
 ### Links
 
