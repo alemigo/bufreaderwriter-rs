@@ -109,19 +109,19 @@ mod tests {
         assert_eq!(data_len, brw.write(data.as_bytes()).expect("Write error"));
 
         let mut buf = vec![0_u8; 10];
-        let n = brw.read(&mut buf[..]).expect("read io error");
+        let _n = brw.read(&mut buf[..]).expect("read io error");
         assert_eq!(std::str::from_utf8(&buf).unwrap(), &data[0..10]);
 
         let _n = brw.write(data.as_bytes()).expect("write io error");
         let _n = brw.write(data.as_bytes()).expect("write io error");
 
         let mut buf = vec![0_u8; 5];
-        let n = brw.read(&mut buf[..]).expect("read io error");
+        let _n = brw.read(&mut buf[..]).expect("read io error");
         let outdata = std::str::from_utf8(&buf).unwrap();
         assert_eq!(outdata, &data[10..15]);
 
         let mut buf = vec![0_u8; (2 * data_len) - 15];
-        let n = brw.read(&mut buf[..]).expect("read io error");
+        let _n = brw.read(&mut buf[..]).expect("read io error");
         let outdata = std::str::from_utf8(&buf).unwrap();
         assert_eq!(&outdata[0..data_len - 15], &data[15..]);
         assert_eq!(&outdata[data_len - 15..], &data);
