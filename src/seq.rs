@@ -94,7 +94,7 @@ impl<RW: Read + Write> Read for BufReaderWriterSeq<RW> {
                         self.buffer.resize(self.pos + readlen, 0);
                         match r.read(&mut self.buffer[self.pos + datalen..self.pos + readlen]) {
                             Ok(n) => {
-                                buf.copy_from_slice(&self.buffer[self.pos..self.pos + datalen + n]);
+                                buf.copy_from_slice(&self.buffer[self.pos..self.pos + readlen]);
                                 self.buffer.truncate(0);
                                 self.pos = 0;
                                 Ok(datalen + n)
