@@ -1,4 +1,3 @@
 /target
 /.vscode
-/.vscode/extensions.json
 Cargo.lock
