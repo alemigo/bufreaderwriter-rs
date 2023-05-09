@@ -113,18 +113,20 @@ mod tests {
         assert_eq!(std::str::from_utf8(&buf).unwrap(), &data[0..10]);
 
         let _n = brw.write(data.as_bytes()).expect("write io error");
-        let _n = brw.write(data.as_bytes()).expect("write io error");
+        assert_eq!(brw.buffer().map_or(0, |b| b.len()) > 0, true);
 
         let mut buf = vec![0_u8; 5];
         let _n = brw.read(&mut buf[..]).expect("read io error");
+        assert_eq!(brw.buffer().unwrap().len() > 0, true);
         let outdata = std::str::from_utf8(&buf).unwrap();
         assert_eq!(outdata, &data[10..15]);
 
-        let mut buf = vec![0_u8; (2 * data_len) - 15];
-        let _n = brw.read(&mut buf[..]).expect("read io error");
+        let mut buf = vec![0_u8; 2 * data_len];
+        let n = brw.read(&mut buf[..]).expect("read io error");
+        assert_eq!(n, (2* data_len) - 15);
         let outdata = std::str::from_utf8(&buf).unwrap();
         assert_eq!(&outdata[0..data_len - 15], &data[15..]);
-        assert_eq!(&outdata[data_len - 15..], &data);
+        assert_eq!(&outdata[data_len - 15..n], &data);
 
         handle.join().expect("Join thread error");
     }
