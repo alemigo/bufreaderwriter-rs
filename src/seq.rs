@@ -76,6 +76,7 @@ impl<RW: Read + Write> BufReaderWriterSeq<RW> {
         self.inner.unwrap().into_inner()
     }
 
+    // Returns a reference to the current read buffer
     pub fn buffer(&self) -> Option<&[u8]> {
         self.buffer.as_ref().map(|b| &b[self.pos..])
     }
@@ -128,7 +129,7 @@ impl<RW: Read + Write> Write for BufReaderWriterSeq<RW> {
             BufIO::Writer(w) => w.write(buf),
             BufIO::Reader(r) => {
                 let rb = r.buffer();
-                if rb.len() > 0 {
+                if !rb.is_empty() {
                     self.buffer = Some(Box::new(rb.to_vec()));
                     self.pos = 0;
                 }
