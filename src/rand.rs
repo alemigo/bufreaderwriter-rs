@@ -6,12 +6,18 @@ enum BufIO<RW: Read + Write + Seek> {
 }
 
 impl<RW: Read + Write + Seek> BufIO<RW> {
-    fn new_writer(rw: RW) -> BufIO<RW> {
-        BufIO::Writer(BufWriter::new(rw))
+    fn new_writer(rw: RW, capacity: Option<usize>) -> BufIO<RW> {
+        BufIO::Writer(match capacity {
+            Some(c) => BufWriter::with_capacity(c, rw),
+            None => BufWriter::new(rw),
+        })
     }
 
-    fn new_reader(rw: RW) -> BufIO<RW> {
-        BufIO::Reader(BufReader::new(rw))
+    fn new_reader(rw: RW, capacity: Option<usize>) -> BufIO<RW> {
+        BufIO::Reader(match capacity {
+            Some(c) => BufReader::with_capacity(c, rw),
+            None => BufReader::new(rw),
+        })
     }
 
     fn get_mut(&mut self) -> &mut RW {
@@ -34,24 +40,50 @@ impl<RW: Read + Write + Seek> BufIO<RW> {
             BufIO::Writer(w) => Ok(w.into_inner()?),
         }
     }
+
+    fn capacity(&self) -> usize {
+        match self {
+            BufIO::Reader(r) => r.capacity(),
+            BufIO::Writer(w) => w.capacity(),
+        }
+    }
 }
 
 pub struct BufReaderWriterRand<RW: Read + Write + Seek> {
     inner: Option<BufIO<RW>>,
+    capacity: Option<usize>,
 }
 
 impl<RW: Read + Write + Seek> BufReaderWriterRand<RW> {
     /// Returns a new BufReaderWriterRand instance, expecting a write as the first operation.
     pub fn new_writer(rw: RW) -> BufReaderWriterRand<RW> {
         BufReaderWriterRand {
-            inner: Some(BufIO::new_writer(rw)),
+            inner: Some(BufIO::new_writer(rw, None)),
+            capacity: None,
+        }
+    }
+
+    /// Returns a new BufReaderWriterRand instance, expecting a write as the first operation, with specified buffer capacity.
+    pub fn writer_with_capacity(capacity: usize, rw: RW) -> BufReaderWriterRand<RW> {
+        BufReaderWriterRand {
+            inner: Some(BufIO::new_writer(rw, Some(capacity))),
+            capacity: Some(capacity),
         }
     }
 
     /// Returns a new BufReaderWriter instance, expecting a read as the first operation.
     pub fn new_reader(rw: RW) -> BufReaderWriterRand<RW> {
         BufReaderWriterRand {
-            inner: Some(BufIO::new_reader(rw)),
+            inner: Some(BufIO::new_reader(rw, None)),
+            capacity: None,
+        }
+    }
+
+    /// Returns a new BufReaderWriter instance, expecting a read as the first operation, with specified buffer capacity.
+    pub fn reader_with_capacity(capacity: usize, rw: RW) -> BufReaderWriterRand<RW> {
+        BufReaderWriterRand {
+            inner: Some(BufIO::new_reader(rw, Some(capacity))),
+            capacity: Some(capacity),
         }
     }
 
@@ -69,6 +101,11 @@ impl<RW: Read + Write + Seek> BufReaderWriterRand<RW> {
     pub fn into_inner(self) -> Result<RW, IntoInnerError<BufWriter<RW>>> {
         self.inner.unwrap().into_inner()
     }
+
+    /// Returns the buffer capacity of the underlying reader or writer.
+    pub fn capacity(&self) -> usize {
+        self.inner.as_ref().map_or(0, |b| b.capacity())
+    }
 }
 
 impl<RW: Read + Write + Seek> Read for BufReaderWriterRand<RW> {
@@ -78,7 +115,10 @@ impl<RW: Read + Write + Seek> Read for BufReaderWriterRand<RW> {
             BufIO::Writer(w) => {
                 w.flush()?;
                 let rw = self.inner.take().unwrap().into_inner()?;
-                self.inner = Some(BufIO::Reader(BufReader::new(rw)));
+                self.inner = match self.capacity {
+                    Some(c) => Some(BufIO::Reader(BufReader::with_capacity(c, rw))),
+                    None => Some(BufIO::Reader(BufReader::new(rw))),
+                };
                 self.read(buf)
             }
         }
@@ -92,7 +132,10 @@ impl<RW: Read + Write + Seek> Write for BufReaderWriterRand<RW> {
             BufIO::Reader(r) => {
                 r.seek(SeekFrom::Current(0))?;
                 let rw = self.inner.take().unwrap().into_inner()?;
-                self.inner = Some(BufIO::Writer(BufWriter::new(rw)));
+                self.inner = match self.capacity {
+                    Some(c) => Some(BufIO::Writer(BufWriter::with_capacity(c, rw))),
+                    None => Some(BufIO::Writer(BufWriter::new(rw))),
+                };
                 self.write(buf)
             }
         }

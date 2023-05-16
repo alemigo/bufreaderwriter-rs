@@ -43,7 +43,9 @@ mod tests {
     #[test]
     fn testrand() {
         let file = tempfile().expect("Error creating temp file");
-        let mut brw = BufReaderWriterRand::new_writer(file);
+        let mut brw = BufReaderWriterRand::writer_with_capacity(3333, file);
+        assert_eq!(3333, brw.capacity());
+
         let data = "The quick brown fox jumps over the lazy dog".to_owned();
         let data_len = data.len();
 
@@ -103,7 +105,8 @@ mod tests {
         });
 
         let socket2 = TcpStream::connect("127.0.0.1:8080").expect("TcpStream error");
-        let mut brw = BufReaderWriterSeq::new_writer(socket2);
+        let mut brw = BufReaderWriterSeq::writer_with_capacity(3333, socket2);
+        assert_eq!(3333, brw.capacity());
 
         thread::sleep(Duration::new(1, 0));
         assert_eq!(data_len, brw.write(data.as_bytes()).expect("Write error"));
