@@ -107,12 +107,68 @@ impl<RW: Read + Write> BufReaderWriterSeq<RW> {
         self.inner.as_ref().unwrap().get_ref()
     }
 
-    /// Unwraps this `BufReaderWriter`, returning the underlying reader/writer.
+    /// Unwraps this `BufReaderWriter`, returning the underlying reader/writer.  Note: the `BufReaderWriter` should be dropped after using this.
     pub fn into_inner(self) -> Result<RW, IntoInnerError<BufWriter<RW>>> {
         self.inner.unwrap().into_inner()
     }
 
-    /// Returns a reference to the current read buffer.
+    /// Returns true if the `BufReaderWriter` in read mode, otherwise false for write mode.
+    pub fn is_reader(&self) -> bool {
+        match self.inner.as_ref().unwrap() {
+            BufIO::Reader(_) => true,
+            _ => false,
+        }
+    }
+
+    /// Gets a reference to the underlying buffered reader, available if in read mode.
+    pub fn get_bufreader_ref(&self) -> Option<&BufReader<RW>> {
+        match self.inner.as_ref().unwrap() {
+            BufIO::Reader(r) => Some(r),
+            _ => None,
+        }
+    }
+
+    /// Gets a mutable reference to the underlying buffered reader, available if in read mode.
+    pub fn get_bufreader_mut(&mut self) -> Option<&mut BufReader<RW>> {
+        match self.inner.as_mut().unwrap() {
+            BufIO::Reader(r) => Some(r),
+            _ => None,
+        }
+    }
+
+    /// Unwraps this `BufReaderWriter` returning the BufReader, available if in read mode.  Note: the `BufReaderWriter` should be dropped after using this.
+    pub fn into_bufreader(self) -> Option<BufReader<RW>> {
+        match self.inner.unwrap() {
+            BufIO::Reader(r) => Some(r),
+            _ => None,
+        }
+    }
+
+    /// Gets a reference to the underlying buffered writer, available if in write mode.
+    pub fn get_bufwriter_ref(&self) -> Option<&BufWriter<RW>> {
+        match self.inner.as_ref().unwrap() {
+            BufIO::Writer(w) => Some(w),
+            _ => None,
+        }
+    }
+
+    /// Gets a mutable reference to the underlying buffered writer, available if in write mode.
+    pub fn get_bufwriter_mut(&mut self) -> Option<&mut BufWriter<RW>> {
+        match self.inner.as_mut().unwrap() {
+            BufIO::Writer(w) => Some(w),
+            _ => None,
+        }
+    }
+
+    /// Unwraps this `BufReaderWriter` returning the `BufWriter`, available if in read mode.  Note: the `BufReaderWriter` should be dropped after using this.
+    pub fn into_bufwriter(self) -> Option<BufWriter<RW>> {
+        match self.inner.unwrap() {
+            BufIO::Writer(w) => Some(w),
+            _ => None,
+        }
+    }
+
+    /// Returns a reference to the current `BufReaderWriter` read buffer data, if any.
     pub fn buffer(&self) -> Option<&[u8]> {
         self.buffer.as_ref().map(|b| &b[self.pos..])
     }
@@ -120,6 +176,16 @@ impl<RW: Read + Write> BufReaderWriterSeq<RW> {
     /// Returns the buffer capacity of the underlying reader or writer.
     pub fn capacity(&self) -> usize {
         self.inner.as_ref().map_or(0, |b| b.capacity())
+    }
+
+    /// Low level function that indicates an amount of data has been consumed from the buffer and is not to be returned by the next read.  The buffer is dropped if all data has been consumed.
+    pub fn consume(&mut self, amt: usize) {
+        if let Some(b) = self.buffer.as_ref() {
+            self.pos += amt;
+            if self.pos >= b.len() {
+                self.buffer = None
+            }
+        }
     }
 }
 
@@ -139,11 +205,9 @@ impl<RW: Read + Write> Read for BufReaderWriterSeq<RW> {
                         }
                         Ok(readlen)
                     } else {
-                        b.resize(self.pos + readlen, 0);
-                        match r.read(&mut b[self.pos + datalen..self.pos + readlen]) {
+                        buf[..datalen].copy_from_slice(&b[self.pos..self.pos + datalen]);
+                        match r.read(&mut buf[datalen..]) {
                             Ok(n) => {
-                                buf[..datalen + n]
-                                    .copy_from_slice(&b[self.pos..self.pos + datalen + n]);
                                 self.buffer = None;
                                 Ok(datalen + n)
                             }

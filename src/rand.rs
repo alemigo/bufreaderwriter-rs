@@ -97,9 +97,65 @@ impl<RW: Read + Write + Seek> BufReaderWriterRand<RW> {
         self.inner.as_ref().unwrap().get_ref()
     }
 
-    /// Unwraps this `BufReaderWriter`, returning the underlying reader/writer.
+    /// Unwraps this `BufReaderWriter`, returning the underlying reader/writer.  Note: the `BufReaderWriter` should be dropped after using this.
     pub fn into_inner(self) -> Result<RW, IntoInnerError<BufWriter<RW>>> {
         self.inner.unwrap().into_inner()
+    }
+
+    /// Returns true if the `BufReaderWriter` in read mode, otherwise false for write mode.
+    pub fn is_reader(&self) -> bool {
+        match self.inner.as_ref().unwrap() {
+            BufIO::Reader(_) => true,
+            _ => false,
+        }
+    }
+
+    /// Gets a reference to the underlying buffered reader, available if in read mode.
+    pub fn get_bufreader_ref(&self) -> Option<&BufReader<RW>> {
+        match self.inner.as_ref().unwrap() {
+            BufIO::Reader(r) => Some(r),
+            _ => None,
+        }
+    }
+
+    /// Gets a mutable reference to the underlying buffered reader, available if in read mode.
+    pub fn get_bufreader_mut(&mut self) -> Option<&mut BufReader<RW>> {
+        match self.inner.as_mut().unwrap() {
+            BufIO::Reader(r) => Some(r),
+            _ => None,
+        }
+    }
+
+    /// Unwraps this `BufReaderWriter` returning the BufReader, available if in read mode.  Note: the `BufReaderWriter` should be dropped after using this.
+    pub fn into_bufreader(self) -> Option<BufReader<RW>> {
+        match self.inner.unwrap() {
+            BufIO::Reader(r) => Some(r),
+            _ => None,
+        }
+    }
+
+    /// Gets a reference to the underlying buffered writer, available if in write mode.
+    pub fn get_bufwriter_ref(&self) -> Option<&BufWriter<RW>> {
+        match self.inner.as_ref().unwrap() {
+            BufIO::Writer(w) => Some(w),
+            _ => None,
+        }
+    }
+
+    /// Gets a mutable reference to the underlying buffered writer, available if in write mode.
+    pub fn get_bufwriter_mut(&mut self) -> Option<&mut BufWriter<RW>> {
+        match self.inner.as_mut().unwrap() {
+            BufIO::Writer(w) => Some(w),
+            _ => None,
+        }
+    }
+
+    /// Unwraps this `BufReaderWriter` returning the `BufWriter`, available if in read mode.  Note: the `BufReaderWriter` should be dropped after using this.
+    pub fn into_bufwriter(self) -> Option<BufWriter<RW>> {
+        match self.inner.unwrap() {
+            BufIO::Writer(w) => Some(w),
+            _ => None,
+        }
     }
 
     /// Returns the buffer capacity of the underlying reader or writer.
