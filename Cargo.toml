@@ -1,6 +1,6 @@
 [package]
 name = "bufreaderwriter"
-version = "0.2.4"
+version = "0.2.5"
 authors = ["github.com/alemigo"]
 edition = "2018"
 license = "MIT OR Apache-2.0"
@@ -8,7 +8,7 @@ description = "Rust convenience structs that facilitate automatic switching betw
 documentation = "https://docs.rs/bufreaderwriter"
 readme = "README.md"
 repository = "https://github.com/alemigo/bufreaderwriter-rs"
-categories = ["filesystem"]
+categories = ["filesystem", "network-programming"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
